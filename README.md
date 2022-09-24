@@ -12,7 +12,7 @@ Please install pytorch, matplotlib, sklearn, and cvxpy (for comparison).
 You can run the program by:
 
 ```
-python main_fed.py --dataset mnist --model vgg --round 200 --gpu 0 --iid iid --optimizer fedavg --total_UE 500 --active_UE 20 --selection "weighted_random"  --name 'cifar10_WR' --Pname 'cifar10_WR' --local_ep 5 --lr 0.1 --momentum 0 --scenario woPER
+python main_fed.py --dataset mnist --model Mnist_oldMLP --round 200 --gpu 0 --iid niid --optimizer fedprox --total_UE 500 --active_UE 10 --selection "weighted_random"  --name 'mnist_WR' --local_ep 20 --lr 0.1 --scenario woPER
 
 ```
 
