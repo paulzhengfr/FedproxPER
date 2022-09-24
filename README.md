@@ -1,4 +1,4 @@
-# FL_PER
+# Fedprox PER (packet error rate)
 
 This code consists in federated learning under transmission packet error rate for the paper "Federated Learning in Heterogeneous Networks with Unreliable Communication".
 
@@ -34,7 +34,7 @@ Many options of the training can be found at the *argparse* part in the main pro
 
 The work is still in review and it is an extension of the conference work:
 ---
-'''
+```
 @INPROCEEDINGS{9682052,
   author={Zheng, Paul and Zhu, Yao and Zhang, Zhengming and Hu, Yulin and Schmeink, Anke},
   booktitle={2021 IEEE Globecom Workshops (GC Wkshps)}, 
@@ -44,4 +44,4 @@ The work is still in review and it is an extension of the conference work:
   number={},
   pages={1-6},
   doi={10.1109/GCWkshps52748.2021.9682052}}
- '''
+```
