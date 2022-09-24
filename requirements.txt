@@ -1,0 +1,5 @@
+matplotlib
+sklearn
+cvxpy
+tqdm
+wandb
