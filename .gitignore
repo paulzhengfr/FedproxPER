@@ -1,0 +1,77 @@
+# pycharm
+.idea/*
+.vscode/
+.vscode/*
+*.code-workspace
+# documents
+#*.csv
+.xls
+.xlsx
+.pdf
+.json
+.out
+*.out
+.log
+*.log
+figures/
+figures/*
+figures/**
+wandb/
+wandb/*
+wandb/**
+results/
+results/*
+results/**
+save/
+save/*
+save/**
+# macOS
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# virtualenv
+.venv
+venv/
+ENV/
+
+
+.ipynb_checkpoints/
+.ipynb_checkpoints/*
+
+csv_res/
+csv_res/*
+
+
+figures2/*

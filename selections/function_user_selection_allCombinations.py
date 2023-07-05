@@ -1,3 +1,8 @@
+''' 
+Exact optimization method by going over all client selection.
+'''
+
+
 import numpy as np
 import scipy.optimize as opt
 import time

@@ -55,41 +55,30 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
     
     
-class LocalUpdate(object):
-    def __init__(self, args, dataset=None, idxs=None, user_id = None, vocab=None, char2index=None):
+class LocalUpdate(object): ## Local training object
+    def __init__(self, args, dataset=None, idxs=None, user_id = None):
         self.args = args
         self.loss_func = nn.CrossEntropyLoss().to(self.args.device)
         self.selected_clients = []
-        if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
+        if args.dataset.find("synthetic") == -1:
             self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
-        elif args.dataset.find("shakespeare") >= 0:
-            data_x_array = np.array(dataset['x'])
-            data_x = torch.as_tensor(data_x_array)
-            data_y_array = np.array((dataset['y']))
-            data_y = torch.as_tensor(data_y_array)
-            
-            data_y = data_y.type(torch.LongTensor)
-            # print("data_y", data_y, "size", data_y.size())
-            dataset_k = Synthetic_Dataset(data_x, data_y)
-            self.ldr_train = DataLoader(dataset_k, batch_size=self.args.local_bs, shuffle=True)
-            self.vocab = vocab
 
         else:
             data_x = torch.Tensor(dataset['x'])
             data_y = torch.Tensor(dataset['y'])
             data_y= data_y.type(torch.LongTensor)
             dataset_k = Synthetic_Dataset(data_x, data_y)
-            self.ldr_train = DataLoader(dataset_k, batch_size=self.args.local_bs, shuffle=True, num_workers=16)
+            self.ldr_train = DataLoader(dataset_k, batch_size=self.args.local_bs, shuffle=True, num_workers=args.num_workers)
         self.user_id = user_id
         
-    def train(self, net, n_sequence_length=80):
+    def train(self, net):
         net.train()
         # train and update
         #if self.args.dataset == "shakespeare": 
          #   optimizer = torch.optim.Adam(net.parameters(),lr=self.args.lr)
         #else:
         optimizer = torch.optim.SGD(net.parameters(), lr=self.args.lr, momentum=self.args.momentum, weight_decay = self.args.weight_decay)
-        
+        # scaler = torch.cuda.amp.GradScaler()
         epoch_loss = []
         for iter in range(self.args.local_ep):
             batch_loss = []
@@ -113,6 +102,7 @@ class LocalUpdate(object):
 
                 net.zero_grad()
                 # added if-statement for shakespeare, hidden states need to be considered for lstm
+                # with torch.cuda.amp.autocast():
                 if self.args.dataset.find("shakespeare") > -1:
                     log_probs, hidden = net(images, hidden)
                 else:
@@ -168,7 +158,7 @@ class LocalUpdate(object):
             update_loss(self.args,-1, iter, batch_idx, -1,sum(batch_loss)/len(batch_loss), self.user_id)
         return net.state_dict(), sum(epoch_loss) / len(epoch_loss), epoch_loss[-1]
     
-    def forwardpass(self, net, n_sequence_length=80):
+    def forwardpass(self, net):
         net.eval()
         # train and update
         optimizer = torch.optim.SGD(net.parameters(), lr=self.args.lr, momentum=self.args.momentum, weight_decay = self.args.weight_decay)
@@ -176,45 +166,17 @@ class LocalUpdate(object):
         epoch_loss = []
         for iter in range(self.args.local_ep):
             batch_loss = []
-            # initialize hidden states for lstm
-            if self.args.dataset.find("shakespeare") > -1:
-                hidden = net.init_hidden()
 
             for batch_idx, (images, labels) in enumerate(self.ldr_train):
                 images = images.to(self.args.device)
-                #start erik
-                # do not move labels to device if shakespeare, need to be processed first
-                if self.args.dataset.find('shakespeare') == -1:
-                    labels = labels.to(self.args.device)
-
-                # images, labels = images.to(self.args.device), labels.to(self.args.device)
                 
-                # new variables because backprob, see udacity char rnn solution
-                if self.args.dataset.find("shakespeare") > -1:
-                    hidden = tuple([each.data for each in hidden])
-                    # hidden = repackage_hidden( hidden)
+                labels = labels.to(self.args.device)
 
                 net.zero_grad()
                 # added if-statement for shakespeare, hidden states need to be considered for lstm
-                if self.args.dataset.find("shakespeare") > -1:
-                    log_probs, hidden = net(images, hidden)
-                else:
-                    log_probs = net(images)
+                
+                log_probs = net(images)
 
-                # print("log_probs_training", log_probs)
-                # processing labels for shakespeare dataset
-                if self.args.dataset == 'shakespeare':
-                    # labels_new = np.zeros((len(labels), n_sequence_length, len(self.vocab)))
-                    # print("labels train before processing ", labels, "size ", labels.size())
-                    # for i in range(len(labels)):
-                    #     for j in range(len(labels[i])):
-                    #         labels_new[i][j][labels[i][j]] = 1 # Why 1.
-                    labels_new = get_new_labelVn(labels, len(self.vocab))
-                    labels = torch.as_tensor(labels_new, dtype=torch.float).to(self.args.device)
-                    # print("labels", labels)
-                    
-                # labels = torch.max(labels, 1)[1].to(self.args.device)
-                # print("log_probs", log_probs.size(), "labels", labels.size())
                 loss = self.loss_func(log_probs, labels)
                 # if self.args.verbose and batch_idx % 10 == 0:
                 #     print('Update Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -229,14 +191,12 @@ class LocalUpdate(object):
         return sum(epoch_loss) / len(epoch_loss)
         
 
-def calc_exact_loss(args, dataset_train,  net_glob, dict_users = None, vocab = None, char2index= None):
+def calc_exact_loss(args, dataset_train,  net_glob, dict_users = None):
     idxs_all_users = np.arange(args.total_UE)
     exact_loss = np.zeros(args.total_UE)
     for idx in idxs_all_users:
-        if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
+        if args.dataset.find("synthetic") == -1:
             local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx], user_id = idx)
-        elif args.dataset.find("shakespeare") > -1:
-            local = LocalUpdate(args=args, dataset=dataset_train[idx], idxs=idx, user_id = idx, vocab = vocab, char2index = char2index)
         else:
             local = LocalUpdate(args=args, dataset=dataset_train[idx], idxs=idx, user_id = idx)
         loss = local.forwardpass(net=copy.deepcopy(net_glob).to(args.device))

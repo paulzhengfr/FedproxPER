@@ -17,18 +17,18 @@ from utils.options import args_parser
 from models.Update import LocalUpdate, calc_exact_loss
 from models.Nets import * #MLP, CNNMnist, CNNCifar
 from models.Fed import FedAvg, FedAggregation
-from models.test import test_img
+from models.evaluation import test_img
 from selections.wireless import wireless_param, user_selection, update_wireless
 from selections.opti import init_optil_weights, update_optil_weights, update_success_trained
 # from models.vgg1 import *
-from models.vgg2 import vgg11_bn
-# import wandb
+from models.vgg import vgg11
+import wandb
 import random
 
 
 import os
 
-from utils.test_synthetic_dataset import read_data
+from test_synthetic_dataset import read_data
 
 
 
@@ -36,16 +36,27 @@ if __name__ == '__main__':
     # parse args
     args = args_parser()
     print(args)
-    #wandb.init(project = 'FLper_{}'.format(args.dataset), name = args.Pname, config=args)
+    if args.no_FL: # centralized learning option
+        args.total_UE = 1
+        args.active_UE = 1
+        args.scenario = "woPER"
+        args.local_ep = 1
+        wandb.init(project = 'noFL',entity ='paulzhengfr', name = args.dataset+'_'+args.Pname, config=args)
+    else:
+        wandb.init(project = 'FLper_{}'.format(args.dataset),entity ='paulzhengfr', name = args.Pname, config=args)
     args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
+    if args.name == 'default':
+        args.name = args.Pname
     init_saving_doc(args)
     random.seed(1234+ args.seed)
-    # load dataset and split users
+    # dataset_rootdir = "/media/data/fl"
+    dataset_rootdir = "../data"
+
+    ## load dataset
     if args.dataset == 'mnist':
         trans_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1751,), (0.3267,))])  #(0.1307,), (0.3081,)
-        dataset_train = datasets.MNIST(root="../data/mnist/", train=True, download=True, transform=trans_mnist)
-        dataset_test = datasets.MNIST(root="../data/mnist/", train=False, download=True, transform=trans_mnist)
-        # sample users
+        dataset_train = datasets.MNIST(root=dataset_rootdir+"/mnist/", train=True, download=True, transform=trans_mnist)
+        dataset_test = datasets.MNIST(root=dataset_rootdir+"/mnist/", train=False, download=True, transform=trans_mnist)
     elif args.dataset == 'cifar':
         trans_cifar = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -59,66 +70,13 @@ if __name__ == '__main__':
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
         #trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        dataset_train = datasets.CIFAR10(root="../data/cifar/", train=True, download=True, transform=trans_cifar)
-        dataset_test = datasets.CIFAR10(root="../data/cifar/", train=False, download=True, transform=trans_cifar_test)
+        dataset_train = datasets.CIFAR10(root=dataset_rootdir+"/cifar/", train=True, download=True, transform=trans_cifar)
+        dataset_test = datasets.CIFAR10(root=dataset_rootdir+"/cifar/", train=False, download=True, transform=trans_cifar_test)
         
-    elif args.dataset == 'cifar100':
-        trans_cifar = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-
-        trans_cifar_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-        #trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        dataset_train = datasets.CIFAR100(root="../data/cifar100/", train=True, download=True, transform=trans_cifar)
-        dataset_test = datasets.CIFAR100(root="../data/cifar100/", train=False, download=True, transform=trans_cifar_test)
-        
-    elif args.dataset == 'shakespeare':
-        train_data_dir = os.path.join('../data',args.dataset, 'data/train')
-        test_data_dir = os.path.join('../data',args.dataset, 'data/test')
-        clients, groups, dataset_train, dataset_test = read_data(train_data_dir, test_data_dir, args.dataset)
-        args.total_UE = len(clients)
-        # print("nb clients", len(clients))
-        dataset_train = [dataset_train[clients[i]] for i in range(args.total_UE)]
-        datasize_p_UE = [len(dataset_train[i]['y']) for i in range(args.total_UE)]
-        sum_datapoints = sum(datasize_p_UE)
-        datasize_p_UE = np.array(datasize_p_UE)
-        datasize_weight = np.array([l / sum_datapoints for l in datasize_p_UE])
-        args.datasize_weight = datasize_weight
-        
-        with open('../data/shakespeare/data/raw_data/raw_data.txt', mode='r') as f:
-            vocab = sorted(set(f.read()))
-        char2index = {char: index for index, char in enumerate(vocab)}
-        index2char = np.array(vocab)
-        
-        # converting testdata
-        for i in range(len(dataset_test['x'])):
-            data_x_int = np.array([char2index[char] for char in (dataset_test['x'])[i]])
-            (dataset_test['x'])[i] = data_x_int
-            data_y_int = np.array([char2index[char] for char in ((dataset_test)['y'])[i]])
-            data_x_temp = copy.deepcopy(data_x_int)
-            data_y_final = np.concatenate((data_x_temp[1:], data_y_int))
-            ((dataset_test)['y'])[i] = data_y_final
-        # print("len_dataset_test ", len(dataset_test['y']))
-
-        # converting traindata
-        for j in range(args.total_UE):
-            for i in range(len((dataset_train[j])['x'])):
-                data_x_int = np.array([char2index[char] for char in ((dataset_train[j])['x'])[i]])
-                ((dataset_train[j])['x'])[i] = data_x_int
-                data_y_int = np.array([char2index[char] for char in ((dataset_train[j])['y'])[i]])
-                data_x_temp = copy.deepcopy(data_x_int)
-                data_y_final = np.concatenate((data_x_temp[1:], data_y_int))
-                ((dataset_train[j])['y'])[i] = data_y_final
 
     elif args.dataset.find("synthetic") >= 0:
-        train_data_dir = os.path.join('../data',args.dataset, 'train')
-        test_data_dir = os.path.join('../data',args.dataset, 'test')
+        train_data_dir = os.path.join(dataset_rootdir,args.dataset, 'train')
+        test_data_dir = os.path.join(dataset_rootdir,args.dataset, 'test')
         clients, groups, dataset_train, dataset_test = read_data(train_data_dir, test_data_dir, args.dataset)
         dataset_train = [dataset_train[clients[i]] for i in range(args.total_UE)]
         datasize_p_UE = [len(dataset_train[i]['y']) for i in range(args.total_UE)]
@@ -134,11 +92,16 @@ if __name__ == '__main__':
     #     dict_users = mnist_iid(dataset_train, args.total_UE)
     # else:
     #     dict_users = mnist_noniid(dataset_train, args.total_UE)
+
+    ## Split data to clients
     users_count_labels= {}
     if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
         partition_obj = DataPartitioner(dataset_train, args.total_UE, NonIID=args.iid ,
                                 alpha=args.alpha , seed = args.seed)
         dict_users, users_count_labels = partition_obj.use()
+        args.users_count_labels = users_count_labels
+        # print("dict_users", dict_users)
+        # print("users count labels", users_count_labels)
         datasize_p_UE = np.array([len(dict_users[i]) for i in range(args.total_UE)])
         datasize_weight = np.array([l/sum(datasize_p_UE) for l in datasize_p_UE])
         args.datasize_weight = datasize_weight
@@ -151,20 +114,24 @@ if __name__ == '__main__':
     # plt.ylabel('datasize')
     # plt.savefig('./save/datasize5')
 
-    if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
+    if args.dataset.find("synthetic") == -1:
 
         img_size = dataset_train[0][0].shape
         print(img_size)
     else:
         img_size = len(dataset_train[0]['x'][0])
 
-    # build model
+    ## build model
     if args.model == 'cnn' and args.dataset == 'cifar':
         net_glob = CNNCifar(args=args).to(args.device)
     elif args.model == 'cnn' and args.dataset == 'mnist':
         net_glob = CNNMnist(args=args).to(args.device)
     elif args.model =='Mnist_oldMLP':
         net_glob = Mnist_oldMLP().to(args.device)
+    elif args.model =='LeNet':
+        net_glob = LeNet().to(args.device)
+    elif args.model =="LeNet_cifar":
+        net_glob = LeNet_cifar().to(args.device)
     elif args.model == 'synth_Net':
         net_glob = synth_Net().to(args.device)
     elif args.model == 'mlp':
@@ -177,22 +144,20 @@ if __name__ == '__main__':
             num_class_cifar = 10
         else:
             num_class_cifar = 100
-        #net_glob = vgg11().to(args.device)
-        net_glob = vgg11_bn(num_classes=num_class_cifar).to(args.device)
+        # net_glob = vgg11().to(args.device)
+        net_glob = vgg11().to(args.device)
         #net_glob = VGG('VGG11').to(args.device)
-    elif args.model == 'LSTMShakespeare':
-        net_glob = LSTMShakespeare(len(vocab), args.gpu).to(args.device)
 
     else:
         exit('Error: unrecognized model')
     print(net_glob)
-    #wandb.watch(net_glob, log_freq=100)
+    wandb.watch(net_glob, log_freq=100)
     net_glob.train()
 
     # copy weights
     w_glob = net_glob.state_dict()
 
-    # training
+    # training init
     loss_train = []
     cv_loss, cv_acc = [], []
     val_loss_pre, counter = 0, 0
@@ -213,11 +178,14 @@ if __name__ == '__main__':
     weights, later_weights = init_optil_weights(args, wireless_arg)
     loss_avg = 10
     
-    args.exact_loss= np.zeros(args.total_UE)
+    args.exact_loss= np.zeros(args.total_UE) # only when the exact loss option is on.
     
     if args.all_clients:
         print("Aggregation over all clients")
         w_locals = [w_glob for i in range(args.total_UE)]
+
+    
+    ## FL Training
     for iter in range(args.round):
         net_glob.train()
         exact_loss_Vn = np.zeros(args.total_UE)
@@ -225,11 +193,11 @@ if __name__ == '__main__':
             args.exact_loss = calc_exact_loss(args, dataset_train, dict_users, net_glob)
             loss_weights = args.exact_loss
             update_acc(args, iter, 0, 0)
-            #if args.scenario =='PER':
-                #wandb.log({"loss": 2, "accuracy": 2, "trained users":0, "successful transmitted users": 0,
-                #    "max local loss": 2, "max index": 0,"coef increasing": 0, "coef decreasing": 0, "objective values": 0})
-            #else:
-                #wandb.log({"loss": 2, "accuracy": 1})
+            if args.scenario =='PER':
+                wandb.log({"loss": 2, "accuracy": 2, "trained users":0, "successful transmitted users": 0,
+                    "max local loss": 2, "max index": 0,"coef increasing": 0, "coef decreasing": 0, "objective values": 0})
+            else:
+                wandb.log({"loss": 2, "accuracy": 1})
             continue
 
         loss_locals = []
@@ -238,7 +206,7 @@ if __name__ == '__main__':
         #m = max(int(args.frac * args.total_UE), 1)
         m = args.active_UE
         seed_round = 1234 + args.seed  + iter
-        if args.scenario == 'woPER':
+        if args.scenario == 'woPER': # without packet error option.
             np.random.seed(seed_round)
             idxs_users = np.random.choice(range(args.total_UE), m, replace=False)
             wireless_arg = {}
@@ -247,6 +215,7 @@ if __name__ == '__main__':
             weights, later_weights, coef_dec, coef_inc = update_optil_weights(args, wireless_arg, loss_weights, num_trained)
             wireless_arg['incr'] = coef_inc
             wireless_arg['decr'] = coef_dec
+            print("later weights zero? ", np.sum(later_weights)==0)
             idxs_users,proba_success_avg , fails, errorprob, obj_values = user_selection(args, wireless_arg, seed_round, datasize_weight,weights,later_weights)
             num_trained, list_trained,bool_trained,  vanish_index = update_success_trained(args, idxs_users, list_trained,bool_trained, vanish_index)
         else:
@@ -255,14 +224,12 @@ if __name__ == '__main__':
             idxs_users = np.random.choice(range(args.total_UE), m, replace=False)
 
         for idx in idxs_users:
-            if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
+            ## Local training
+            if args.dataset.find("synthetic") == -1:
                 local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx], user_id = idx)
-            # added arguments vocab, char2index
-            elif args.dataset.find("shakespeare") > -1:
-                local = LocalUpdate(args=args, dataset=dataset_train[idx], idxs=idx, user_id = idx, vocab = vocab, char2index = char2index)
             else:
                 local = LocalUpdate(args=args, dataset=dataset_train[idx], idxs=idx, user_id = idx)
-            w, loss, final_loss = local.train(net=copy.deepcopy(net_glob).to(args.device), n_sequence_length=80)
+            w, loss, final_loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
             if args.all_clients:
                 w_locals[idx] = copy.deepcopy(w)
             else:
@@ -273,7 +240,7 @@ if __name__ == '__main__':
             elif args.loss_type == 'final':
                 loss_weights[idx] = copy.deepcopy(final_loss)
 
-        # update global weights
+        # update global weights by aggregation.
         if args.scenario == 'woPER':
             w_glob = FedAvg(w_locals)
         else:
@@ -287,14 +254,12 @@ if __name__ == '__main__':
             exact_loss_Vn = calc_exact_loss(args, dataset_train, dict_users, net_glob)
         args.exact_loss = exact_loss_Vn
             
-        # print loss
+        # print, log, and save loss and accuracy
         training_loss_avg = -1
         if len(idxs_users) != 0 and args.eval_trloss:
             loss_avg = sum(loss_locals) / len(loss_locals)
-            if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
+            if args.dataset.find("synthetic") == -1:
                 exact_loss_Vn = calc_exact_loss(args, dataset_train,  net_glob, dict_users=dict_users)
-            elif args.dataset.find("shakespeare") > -1:
-                exact_loss_Vn = calc_exact_loss(args, dataset_train,  net_glob, vocab =vocab, char2index= char2index)
             else:
                 exact_loss_Vn = calc_exact_loss(args, dataset_train,  net_glob)
             training_loss_avg = np.sum(exact_loss_Vn * args.datasize_weight)
@@ -303,25 +268,35 @@ if __name__ == '__main__':
 
         net_glob.eval()
         acc_train = -1
-        if args.dataset.find("synthetic") == -1 and args.dataset.find("shakespeare") == -1:
-            acc_train, _ = test_img(net_glob, dataset_train, args)
-        if args.dataset.find("shakespeare") > -1:
-            acc_test, loss_test = test_img(net_glob, dataset_test, args, vocab, char2index)
+        if args.dataset.find("synthetic") == -1:
+            acc_train, _, class_accuracy = test_img(net_glob, dataset_train, args)
         else:
-            acc_test, loss_test = test_img(net_glob, dataset_test, args)
+            acc_test, loss_test, class_accuracy = test_img(net_glob, dataset_test, args)
 
         print("Training accuracy: {:.2f}".format(acc_train))
         print("Testing accuracy: {:.2f}".format(acc_test))
         update_acc(args, iter, acc_test, acc_train, train_loss=training_loss_avg)
-        #if args.scenario =='PER':
-            #if len(idxs_users)!= 0:
-            #    wandb.log({"loss": training_loss_avg, "accuracy": acc_test, "trained users":num_trained, "successful transmitted users": len(idxs_users),
-            #        "max local loss": max(loss_locals), "max index": idxs_users[np.argmax(np.array(loss_locals))],"coef increasing": coef_inc, "coef decreasing": coef_dec, "objective values": obj_values})
-            #else:
-            #    wandb.log({"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
-             #       "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1})# loss: loss_avg
-        #else:
-            #wandb.log({"loss": training_loss_avg, "accuracy": acc_test})
+        if args.scenario =='PER':
+            if len(idxs_users)!= 0:
+                log_dict = {"loss": training_loss_avg, "accuracy": acc_test, "trained users":num_trained, "successful transmitted users": len(idxs_users),
+                    "max local loss": max(loss_locals), "max index": idxs_users[np.argmax(np.array(loss_locals))],
+                    "coef increasing": coef_inc, "coef decreasing": coef_dec, "objective values": obj_values}
+                log_dict.update(class_accuracy)
+                log_dict.update(args.trained_users_per_class)
+                log_dict.update(args.trained_data_per_class)
+                wandb.log(log_dict)
+            else:
+                log_dict = {"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
+                    "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1}
+                log_dict.update(class_accuracy)
+                log_dict.update(args.trained_users_per_class)
+                log_dict.update(args.trained_data_per_class)
+                wandb.log({"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
+                    "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1})# loss: loss_avg
+        else:
+            log_dict = {"loss": training_loss_avg, "accuracy": acc_test}
+            log_dict.update(class_accuracy)
+            wandb.log(log_dict)
 
     # plot loss curve
     # plt.figure()

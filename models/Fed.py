@@ -16,7 +16,21 @@ def FedAvg(w):
     return w_avg
 
 def FedAggregation(w, w_old, data_weight, active_clients, args, wireless_arg):
+    """FedAggregation, aggregate with weight correction in case of packet error scenario
 
+    Args:
+        w (_type_): list of weights of local model updates
+        w_old (_type_): the most recent global model.
+        data_weight (_type_): _description_
+        active_clients (_type_): index of clients that are activated in this comm. round.
+        args (_type_): _description_
+        wireless_arg (_type_): _description_
+
+    Returns:
+        w_avg : aggregated model parameters
+    """
+    
+    
     weight_i = calc_weightAggreg(data_weight, active_clients, args, wireless_arg) # weight_i already normalized
     weight_i = torch.from_numpy(weight_i).to(args.device)
     if len(w) == 0:
@@ -43,9 +57,22 @@ def FedAggregation(w, w_old, data_weight, active_clients, args, wireless_arg):
 
 
 def calc_weightAggreg(data_weight, active_clients, args, wireless_arg):
-    if args.aggregation == 'oneKmomentum' and args.scenario == 'PER':
+    """Determine the weight to be applied during model weight aggregation.
+
+    Args:
+        data_weight (_type_): _description_
+        active_clients (_type_):  index of clients that are activated in this comm. round.
+        args (_type_): _description_
+        wireless_arg (_type_): _description_
+
+    Returns:
+        weight_c: list of weights to be applied on user's model updates.
+    """
+    
+    
+    if args.aggregation == 'oneKmomentum' and args.scenario == 'PER' and (not args.h_not_in_Obj):
         ratio_aggreg =  args.total_UE / args.active_UE / wireless_arg['success prob'][active_clients]
-    elif args.aggregation == 'oneK' or args.scenario =="woPER":
+    elif args.aggregation == 'oneK' or args.scenario =="woPER" or args.h_not_in_Obj:
         ratio_aggreg =  args.total_UE / args.active_UE
         # print("oneK activated")
     elif args.aggregation =='oneN':
@@ -55,11 +82,13 @@ def calc_weightAggreg(data_weight, active_clients, args, wireless_arg):
         print("args aggregation erroneous\n")
         print("================================\n")
         ratio_aggreg= 1
-    if args.selection == 'uni_random' or args.selection == 'best_loss' or args.selection == 'best_channel' or args.selection == 'best_channel_ratio' or args.selection == 'best_exact_loss':
+    if (args.selection == 'uni_random' or args.selection == 'best_loss' or args.selection == 'best_channel' or args.selection == 'best_channel_ratio' 
+        or args.selection == 'best_exact_loss'):
         weight_c = copy.deepcopy(data_weight[active_clients]) *ratio_aggreg
         
 
-    elif args.selection == 'solve_opti_loss_size' or args.selection == 'solve_opti_loss_size2' or args.selection == 'solve_opti_size' or args.selection == 'weighted_random' or args.selection == 'solve_opti_loss_size4' or args.selection == 'best_datasize_success_rate':
+    elif (args.selection == 'solve_opti_loss_size' or args.selection == 'solve_opti_loss_size2' or args.selection == 'solve_opti_size' or args.selection == 'weighted_random' 
+          or args.selection == 'solve_opti_loss_size4' or args.selection == 'best_datasize_success_rate' or args.selection == 'solve_opti_AoU' or args.selection == 'solve_opti_laterW'):
         weight_c = np.ones(len(active_clients)) * 1/args.total_UE * ratio_aggreg
         if args.selection == 'solve_opti_loss_size2' and (args.formulation == 'salehi' or args.formulation == 'log-salehi'):
             weight_c =  1/args.total_UE * ratio_aggreg / copy.deepcopy(wireless_arg['salehi_weight_sampling'][active_clients])

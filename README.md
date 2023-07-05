@@ -6,7 +6,7 @@ This code consists in federated learning under transmission packet error rate fo
 
 The main program is *main_fed.py*.
 
-Please install pytorch, matplotlib, sklearn, and cvxpy (for comparison). 
+Please install pytorch and related first and then install the `requirement.txt` file. 
 
 
 You can run the program by:
@@ -15,7 +15,6 @@ You can run the program by:
 python main_fed.py --dataset mnist --model Mnist_oldMLP --round 200 --gpu 0 --iid niid --optimizer fedprox --total_UE 500 --active_UE 10 --selection "weighted_random"  --name 'mnist_WR' --local_ep 20 --lr 0.1 --scenario woPER
 
 ```
-
 
 Many options of the training can be found at the *argparse* part in the main program.
 * `--optimizer`: FedAvg and FedProx are implemented and can be changed: fedavg, fedprox.
@@ -28,8 +27,12 @@ Many options of the training can be found at the *argparse* part in the main pro
 * `--seed` and `--wireless_seed`:random seeds
 * `--total_UE`: total participating users
 * `--active_UE`: number of active users at each round.
-* `--selection`: user selection strategy `uni_random` and `weighted_random`. (There are others but unrelevant for now)
+* `--selection`: user selection strategy `weighted_random`, and our method is denoted as `solve_opti_loss_size2`.
 * `--name`: experiment name for folder name where all results are stored.
+
+More options can be found in `./utils/options.py`.
+All simulations done in the paper have their corresponding bash scripts in the folder `bash_scripts/`.
+
 
 
 The work is still in review and it is an extension of the conference work:

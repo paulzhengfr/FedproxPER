@@ -1,5 +1,5 @@
 matplotlib
-sklearn
+scikit-learn
 cvxpy
 tqdm
 wandb

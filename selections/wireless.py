@@ -1,13 +1,13 @@
 import numpy as np
 from selections.function_user_selection import user_selection_opti, naif_power_allocation
 from selections.function_user_selection_allCombinations import choose_comb, solve_opti_all, solve_opti_wrt_P
-# from selections.function_waterfilling3 import opti_WF
-from selections.function_waterfilling5 import opti_WF
-from selections.function_LR import opti_LR, opti_LR_for_naif
+from selections.function_LR import opti_LR, opti_LR_for_naif, opti_Obj_no_h
 from selections.main_otherClientselection import CS_salehi
 from selections.scenario_design import get_best2labels, assign_distance
+from selections.function_AoU import solve_cstObj_pb
 import torch
 import copy
+import pickle 
 # import wandb
 
 
@@ -36,13 +36,11 @@ def wireless_param(args, data_weight, nb_data_assigned):
         }
     np.random.seed(args.wireless_seed )
     wireless_arg['distance']  = np.sqrt(np.random.uniform(1, wireless_arg['radius']  ** 2, args.total_UE))
-    # best2_dict = get_best2labels(net_cls)
-    # print(best2_dict)
-    # distance_vec[0:args.total_UE/10]
-    # print(distance_vec)
-    # print("Initial Distance vector mean:",np.mean(distance_vec))
-    # # wireless_arg['distance']  = assign_distance(best2_dict,wireless_arg) #(distance_vec, best2_dict)
+    
+    if args.data_distr_scenarios != "none":
+        wireless_arg['distance']  = assign_distance(args, wireless_arg)
     # print("Final Distance vector:",wireless_arg['distance'])
+    
     FSPL = 20 * np.log10(wireless_arg['distance']) + 20 * np.log10(wireless_arg['freq']) - 27.55
     wireless_arg['FSPL'] = dB2power(FSPL)
 
@@ -70,6 +68,7 @@ def wireless_param(args, data_weight, nb_data_assigned):
     return wireless_arg
 
 def update_wireless(args, wireless_arg, seed):
+    # Update fading coefficient
     np.random.seed(seed)
     if wireless_arg['sigma'] == 0:
         h_i = 2  / wireless_arg['FSPL']
@@ -89,8 +88,7 @@ def objective_funtion(x, alpha, h_i, S_i, data_size, const, later_weights,P_max,
 
 
 def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
-    to_testLR = False
-    if args.opti != "WF" and args.opti !="LR":
+    if args.opti != "WF" and args.opti !="LR" and args.opti !="cstWObj":
         all_comb = copy.deepcopy(wireless_arg['all_comb'])
         list2choose = copy.deepcopy(wireless_arg['list2choose'])
     user_indices = [k for k in range(args.total_UE )]
@@ -107,7 +105,8 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
     
     #print("decreasing value", wireless_arg['decr'] )
     K = args.active_UE
-    if args.selection  == 'uni_random' or args.selection  == 'best_channel' or args.selection  == 'best_channel_ratio' or args.selection  == 'best_loss' or args.selection  == 'weighted_random' or args.selection == 'salehi' or wireless_arg['decr'] == 0:
+    if args.selection  == 'uni_random' or args.selection  == 'best_channel' or args.selection  == 'best_channel_ratio' or args.selection  == 'best_loss' or args.selection  == 'weighted_random' \
+        or args.selection == 'salehi' or (wireless_arg['decr'] == 0 and (not args.no_later or not args.selection  == 'solve_opti_laterW')):
         if args.selection == 'uni_random':
             np.random.seed(seed)
             active_clients = np.random.choice(user_indices, args.active_UE , replace = False)
@@ -132,8 +131,8 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
             salehi_weight = data_size / wireless_arg['success prob']
             weight_sampling = CS_salehi(args.total_UE,args.active_UE, salehi_weight, 1)
             active_clients = list(torch.utils.data.WeightedRandomSampler(weight_sampling , args.active_UE, replacement = False))
-            if checkIfDuplicates_1(active_clients):
-                print("-----------------Duplicates of users--------")
+            # if checkIfDuplicates_1(active_clients):
+            #     print("-----------------Duplicates of users--------")
 
         h_avg_p = copy.deepcopy(h_avg[active_clients])
         data_size_p = copy.deepcopy(data_size[active_clients])
@@ -142,7 +141,7 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
         power_allocated = np.zeros(len(user_indices))
         if args.allocate_power:
             if args.opti == 'LR':
-                _, power_allocated[active_clients], _, _ = opti_LR_for_naif( const_alpha, h_avg_p, weights_uni, P_max, P_sum,data_size_p, theta, later_weights_p, 1,1)
+                _, power_allocated[active_clients], _, _ = opti_LR_for_naif( const_alpha, h_avg_p, weights_uni, P_max, P_sum,data_size_p, theta, later_weights_p)
             else:
                 try:
                     _, power_allocated[active_clients] = solve_opti_wrt_P(weights_uni, h_avg_p, N0,B, m, args.active_UE, wireless_arg['alpha']  , wireless_arg['beta'] , P_max,P_sum, 'P1',data_size_p, theta, Tslot, later_weights_p)
@@ -162,7 +161,9 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
         run_time = 0
         message = ''
         obj_value = objective_funtion(power_allocated, const_alpha, h_avg, np.ones(args.total_UE), data_size, theta, later_weights,P_max, 1,1)
-    elif args.selection  == 'solve_opti_loss_size' or args.selection  == 'solve_opti_loss_size2' or args.selection  == 'solve_opti_loss_size3' or args.selection  == 'solve_opti_loss_size4' or args.selection  =='solve_opti_size' or args.selection  == 'solve_opti_loss':
+    elif (args.selection  == 'solve_opti_loss_size' or args.selection  == 'solve_opti_loss_size2' or args.selection  == 'solve_opti_loss_size3' or 
+          args.selection  == 'solve_opti_loss_size4' or args.selection  =='solve_opti_size' or args.selection  == 'solve_opti_loss' or \
+              args.selection == 'solve_opti_AoU' or args.selection == 'solve_opti_laterW'):
         if args.opti == 'P4':
             user_selected,power_allocated, message,_,run_time=user_selection_opti(args.active_UE , wireless_arg['M']  ,wireless_arg['Mprime'],
                                                                 weights, h_avg, N0*B, m,
@@ -177,38 +178,28 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
 
             power_allocated = np.zeros(len(user_indices))
             power_allocated[active_clients] = power_active
-        elif args.opti == 'WF' :
-            message = 'yoyo'
-            const_alpha = N0 * B * m
-            const = theta / Tslot
-            # power_allocated, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const,
-            #                                      later_weights) # remember to add data_size_weight
-            power_allocated, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const,
-                                                 later_weights, wireless_arg['incr'],wireless_arg['decr']) # remember to add data_size_weight
-            
-            active_clients = np.nonzero(power_allocated)[0]
-            print('active clients number is ', len(active_clients) )
-            # if len(active_clients) != K:
-            #     print('active clients number is ', len(active_clients) )
-                # logging.info("active clients number is {}".format( len(active_clients)))
-            run_time = 0
         elif args.opti == 'LR' :
             message = 'yoyo'
             const_alpha = N0 * B * m
             const = theta / Tslot
-            # power_allocated, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const,
-            #                                      later_weights) # remember to add data_size_weight
             weights_to_use = copy.deepcopy(weights)
+            
             if args.test_method == 'uni_weights':
                 weights_to_use = np.ones(args.total_UE) * wireless_arg['decr']
             elif args.test_method == 'exact_loss': # sum loss
                 weights_to_use = args.exact_loss* wireless_arg['decr']
+                
+            
             if args.test_method == 'sum_loss':
                 _, power_allocated, _ ,_= opti_LR( K, const_alpha, h_avg, np.ones(args.total_UE)* wireless_arg['decr'], P_max, P_sum,data_size,const,
-                                                 later_weights+weights_to_use, wireless_arg['incr'],wireless_arg['decr']) # remember to add 
+                                                 later_weights+weights_to_use ) # remember to add 
             else:
-                _, power_allocated, _ ,_= opti_LR( K, const_alpha, h_avg, weights_to_use, P_max, P_sum,data_size,const,
-                                                     later_weights, wireless_arg['incr'],wireless_arg['decr']) # remember to add data_size_weight
+                if args.no_later:
+                    _, power_allocated, _ ,_= opti_LR( K, const_alpha, h_avg, weights_to_use, P_max, P_sum,data_size,const,
+                                                     np.zeros(args.total_UE)) # remember to add data_size_weight
+                else:
+                    _, power_allocated, _ ,_= opti_LR( K, const_alpha, h_avg, weights_to_use *wireless_arg['decr'] , P_max, P_sum,data_size,const,
+                                                        later_weights) # remember to add data_size_weight
             
             active_clients = np.nonzero(power_allocated)[0]
             print('active clients number is ', len(active_clients) )
@@ -216,51 +207,27 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
             #     print('active clients number is ', len(active_clients) )
                 # logging.info("active clients number is {}".format( len(active_clients)))
             run_time = 0
-        # elif args.opti == 'WF' :
-        #     message = 'yoyo'
-        #     const_alpha = N0 * B * m
-        #     const = theta / Tslot
-        #     power_allocated, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const) # remember to add data_size_weight
-        #     active_clients = np.nonzero(power_allocated)[0]
-        #     if len(active_clients) != K:
-        #         print('active clients number is ', len(active_clients) )
-        #         logging.info("active clients number is {}".format( len(active_clients)))
-        #     run_time = 0
-
-        obj_value = objective_funtion(power_allocated, const_alpha, h_avg, weights, data_size, theta, later_weights,P_max, 1,1)
-        if to_testLR:
+        elif args.opti == 'cstWObj':
+            const_alpha = N0 * B * m
             const = theta / Tslot
-            # power_allocated, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const,
-            #                                      later_weights) # remember to add data_size_weight
-            ### Test WF before 
-            power_allocated_WR, _ ,message= opti_WF( K, const_alpha, h_avg, weights, P_max, P_sum,data_size,const,
-                                                 later_weights, wireless_arg['incr'],wireless_arg['decr'])
-            obj_value_WR = objective_funtion(power_allocated_WR, const_alpha, h_avg, weights, data_size, theta, later_weights,P_max, 1,1)
-            ### Test another power allocation after user selection.
-            h_avg_p = copy.deepcopy(h_avg[active_clients])
-            data_size_p = copy.deepcopy(data_size[active_clients])
-            later_weights_p = copy.deepcopy(later_weights[active_clients])
-            weights_uni = np.ones(args.active_UE)
-            power_allocated_selected_trad = np.zeros(len(user_indices))
-            _, power_allocated_selected_trad[active_clients] = solve_opti_wrt_P(weights_uni, h_avg_p, N0,B, m, args.active_UE, wireless_arg['alpha']  , wireless_arg['beta'] , P_max,P_sum, 'P1',data_size_p, theta, Tslot, later_weights_p)
-            obj_value_selected_trad = objective_funtion(power_allocated_selected_trad, const_alpha, h_avg, weights, data_size, theta, later_weights,P_max, 1,1)
-            
-            power_allocated_selected_LR = np.zeros(len(user_indices))
-            _, power_allocated_selected_LR[active_clients], _, _ =opti_LR_for_naif( const_alpha, h_avg_p, weights_uni, P_max, P_sum,data_size_p, const, later_weights_p, 1,1)
-            obj_value_selected_LR = objective_funtion(power_allocated_selected_LR, const_alpha, h_avg, weights, data_size, theta, later_weights,P_max, 1,1)
-            print(f"objective values LR: {obj_value} and objective value of WF before : {obj_value_WR} objective values if redo the power allocation: {obj_value_selected_trad} and objective value if redo the power allocation with LR : {obj_value_selected_LR}")
+            weights_to_use = copy.deepcopy(weights)
+            # print("age of updates vector", args.age_Updates)
+            if args.selection == "solve_opti_laterW":
+                power_allocated = solve_cstObj_pb(K, const_alpha, h_avg, np.zeros(args.total_UE), P_max, P_sum,data_size,const, later_weights)
+            else:
+                power_allocated = solve_cstObj_pb(K, const_alpha, h_avg, weights_to_use*wireless_arg['decr'], P_max, P_sum,data_size,const, later_weights)
+            active_clients = np.nonzero(power_allocated)[0]
+            print('active clients number is ', len(active_clients) )
+        obj_value = objective_funtion(power_allocated, const_alpha, h_avg, weights, data_size, theta, later_weights,P_max, 1,1)
+        
     else:
         print("args selection value is erroneous, uniform random selection is considered instead")
-        # logging.info("args selection value is erroneous, uniform random selection is considered instead")
         active_clients = np.random.choice(user_indices, args.active_UE , replace = False)
         power_allocated = np.zeros(len(user_indices))
         power_allocated[active_clients] = min(P_sum / args.active_UE , P_max)
         run_time = 0
         message = ''
     # Communication error
-    # logging.info("The optimization running time is {}".format( run_time))
-    # logging.info(message)
-    # wandb.log({"Power allocated": power_allocated})
     print("Intended transmission users:", active_clients)
     snr = power_allocated * h_i / N0 / B
     transmission_rate = np.log2(1 + snr)
@@ -269,8 +236,6 @@ def user_selection(args, wireless_arg, seed,  data_size,weights,later_weights):
     snr_avg = power_allocated * h_avg / N0 / B
     proba_success_avg = np.zeros(args.total_UE)
     proba_success_avg[snr_avg>0] =  np.exp(-m / snr_avg[snr_avg>0])
-    #print("probability of success transmission is ", proba_success[active_clients])
-    #logging.info("probability of success transmission is ", proba_success[active_clients])
 
     active_success_clients = []
     fails = 0
