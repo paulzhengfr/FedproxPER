@@ -31,8 +31,11 @@ Many options of the training can be found at the *argparse* part in the main pro
 * `--name`: experiment name for folder name where all results are stored.
 
 More options can be found in `./utils/options.py`.
-All simulations done in the paper have their corresponding bash scripts in the folder `bash_scripts/`.
 
+All simulations in the paper can be reproced by their corresponding bash scripts in the folder `bash_scripts/`.
+All figures can be reproduced by `Fig_X_*.ipynb/py` file in this main folder.
+
+Results csv files to reproduce the figures will all be updated after paper official publication.
 
 
 The work is still in review and it is an extension of the conference work:
