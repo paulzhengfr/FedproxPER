@@ -38,16 +38,17 @@ All figures can be reproduced by `Fig_X_*.ipynb/py` file in this main folder.
 Results csv files to reproduce the figures will all be updated after paper official publication.
 
 
-The work is still in review and it is an extension of the conference work:
+The paper reference is as belows:
 ---
 ```
-@INPROCEEDINGS{9682052,
-  author={Zheng, Paul and Zhu, Yao and Zhang, Zhengming and Hu, Yulin and Schmeink, Anke},
-  booktitle={2021 IEEE Globecom Workshops (GC Wkshps)}, 
-  title={Federated Learning in Heterogeneous Networks with Unreliable Communication}, 
-  year={2021},
-  volume={},
-  number={},
-  pages={1-6},
-  doi={10.1109/GCWkshps52748.2021.9682052}}
+@ARTICLE{10253642,
+  author={Zheng, Paul and Zhu, Yao and Hu, Yulin and Zhang, Zhengming and Schmeink, Anke},
+  journal={IEEE Transactions on Wireless Communications}, 
+  title={Federated Learning in Heterogeneous Networks With Unreliable Communication}, 
+  year={2024},
+  volume={23},
+  number={4},
+  pages={3823-3838},
+  keywords={Training;Convergence;Computational modeling;Servers;Resource management;Data models;Wireless networks;Distributed learning;federated learning;wireless networks;packet error rate;convergence analysis},
+  doi={10.1109/TWC.2023.3311824}}
 ```
