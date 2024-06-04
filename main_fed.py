@@ -268,11 +268,12 @@ if __name__ == '__main__':
 
         net_glob.eval()
         acc_train = -1
-        if args.dataset.find("synthetic") == -1:
-            acc_train, _, class_accuracy = test_img(net_glob, dataset_train, args)
-        else:
-            acc_test, loss_test, class_accuracy = test_img(net_glob, dataset_test, args)
-
+        # if args.dataset.find("synthetic") == -1:
+        #     acc_train, _, class_accuracy = test_img(net_glob, dataset_train, args)
+        # else:
+        #     acc_test, loss_test, class_accuracy = test_img(net_glob, dataset_test, args)
+        acc_train, _, class_accuracy = test_img(net_glob, dataset_train, args)
+        acc_test, loss_test, class_accuracy = test_img(net_glob, dataset_test, args)
         print("Training accuracy: {:.2f}".format(acc_train))
         print("Testing accuracy: {:.2f}".format(acc_test))
         update_acc(args, iter, acc_test, acc_train, train_loss=training_loss_avg)
