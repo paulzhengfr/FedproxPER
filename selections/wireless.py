@@ -1,7 +1,7 @@
 import numpy as np
 from selections.function_user_selection import user_selection_opti, naif_power_allocation
 from selections.function_user_selection_allCombinations import choose_comb, solve_opti_all, solve_opti_wrt_P
-from selections.function_LR import opti_LR, opti_LR_for_naif, opti_Obj_no_h
+from selections.function_LR import opti_LR, opti_LR_for_naif
 from selections.main_otherClientselection import CS_salehi
 from selections.scenario_design import get_best2labels, assign_distance
 from selections.function_AoU import solve_cstObj_pb
