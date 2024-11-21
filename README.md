@@ -7,7 +7,7 @@ This code consists in federated learning under transmission packet error rate fo
 The main program is *main_fed.py*.
 
 Please first install the requirements using pip:  
-```pip install -r requirement.txt``` file. 
+```pip3 install -r requirement.txt``` file. 
 
 
 You can run the program by:
