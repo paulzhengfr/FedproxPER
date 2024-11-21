@@ -22,7 +22,7 @@ from selections.wireless import wireless_param, user_selection, update_wireless
 from selections.opti import init_optil_weights, update_optil_weights, update_success_trained
 # from models.vgg1 import *
 from models.vgg import vgg11
-import wandb
+# import wandb
 import random
 
 
@@ -41,9 +41,9 @@ if __name__ == '__main__':
         args.active_UE = 1
         args.scenario = "woPER"
         args.local_ep = 1
-        wandb.init(project = 'noFL',entity ='paulzhengfr', name = args.dataset+'_'+args.Pname, config=args)
-    else:
-        wandb.init(project = 'FLper_{}'.format(args.dataset),entity ='paulzhengfr', name = args.Pname, config=args)
+        # wandb.init(project = 'noFL', name = args.dataset+'_'+args.Pname, config=args)
+    # else:
+        # wandb.init(project = 'FLper_{}'.format(args.dataset), name = args.Pname, config=args)
     args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
     if args.name == 'default':
         args.name = args.Pname
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     else:
         exit('Error: unrecognized model')
     print(net_glob)
-    wandb.watch(net_glob, log_freq=100)
+    # wandb.watch(net_glob, log_freq=100)
     net_glob.train()
 
     # copy weights
@@ -193,11 +193,11 @@ if __name__ == '__main__':
             args.exact_loss = calc_exact_loss(args, dataset_train, dict_users, net_glob)
             loss_weights = args.exact_loss
             update_acc(args, iter, 0, 0)
-            if args.scenario =='PER':
-                wandb.log({"loss": 2, "accuracy": 2, "trained users":0, "successful transmitted users": 0,
-                    "max local loss": 2, "max index": 0,"coef increasing": 0, "coef decreasing": 0, "objective values": 0})
-            else:
-                wandb.log({"loss": 2, "accuracy": 1})
+            # if args.scenario =='PER':
+            #     wandb.log({"loss": 2, "accuracy": 2, "trained users":0, "successful transmitted users": 0,
+            #         "max local loss": 2, "max index": 0,"coef increasing": 0, "coef decreasing": 0, "objective values": 0})
+            # else:
+            #     wandb.log({"loss": 2, "accuracy": 1})
             continue
 
         loss_locals = []
@@ -285,19 +285,19 @@ if __name__ == '__main__':
                 log_dict.update(class_accuracy)
                 log_dict.update(args.trained_users_per_class)
                 log_dict.update(args.trained_data_per_class)
-                wandb.log(log_dict)
+                # wandb.log(log_dict)
             else:
                 log_dict = {"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
                     "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1}
                 log_dict.update(class_accuracy)
                 log_dict.update(args.trained_users_per_class)
                 log_dict.update(args.trained_data_per_class)
-                wandb.log({"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
-                    "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1})# loss: loss_avg
+                # wandb.log({"loss": training_loss_avg, "accuracy":acc_test, "trained users":num_trained,"successful transmitted users":0,
+                #     "max local loss": 0, "max index": -10,"coef increasing":0, "coef decreasing": 1})# loss: loss_avg
         else:
             log_dict = {"loss": training_loss_avg, "accuracy": acc_test}
             log_dict.update(class_accuracy)
-            wandb.log(log_dict)
+            # wandb.log(log_dict)
 
     # plot loss curve
     # plt.figure()

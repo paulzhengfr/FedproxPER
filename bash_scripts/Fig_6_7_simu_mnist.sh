@@ -1,6 +1,6 @@
 #!/bin/bash
 function max4 {
-   while [ `jobs | wc -l` -ge 6 ]
+   while [ `jobs | wc -l` -ge 6 ] # tune the number of parallel process
    do
       wait -n
    done

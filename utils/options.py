@@ -130,6 +130,9 @@ def args_parser():
                         type = str,
                         default = 'none',  # "inverse_datasize"
                         help='f')
+    parser.add_argument('--h_not_in_Obj', action='store_true', help='if consider h_i effect in the objective of client selection')
+    
+
     args = parser.parse_args()
     return args
 

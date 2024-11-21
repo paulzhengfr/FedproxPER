@@ -1,3 +1,6 @@
+torch
+torchvision
+torchaudio
 matplotlib
 scikit-learn
 cvxpy

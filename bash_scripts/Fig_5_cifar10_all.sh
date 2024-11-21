@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function max4 {
-   while [ `jobs | wc -l` -ge 20 ]
+   while [ `jobs | wc -l` -ge 3 ] # tune the number of parallel process
    do
       wait -n
    done
@@ -21,7 +21,8 @@ do
     # echo $seed_oth
     # echo $seed_wireless
 
-for local_UE in 1 2 5 10 20 30
+for local_UE in 1 2 5 10 20 30 
+# for local_UE in 20
 do 
 for cell_R in 600 800 1000
 do

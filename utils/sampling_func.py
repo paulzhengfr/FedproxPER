@@ -48,7 +48,21 @@ class DataPartitioner(object):
                 part_len = int(frac * data_len)
                 self.partitions.append(indexes[0:part_len])
                 indexes = indexes[part_len:]
+            
+            net_dataidx_map = {}
+            labelList = np.array(data.targets)
+            for j in range(num_clients):
+                np.random.shuffle(self.partitions[j])
+                net_dataidx_map[j] = self.partitions[j]
+                
+            net_cls_counts = {}
 
+            for net_i, dataidx in net_dataidx_map.items():
+                unq, unq_cnt = np.unique(labelList[dataidx], return_counts=True)
+                tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
+                net_cls_counts[net_i] = tmp
+            print('Data statistics: %s' % str(net_cls_counts))
+            self.count = net_cls_counts
         elif NonIID == 'niid':
             self.partitions, self.count = self.__getNonIIDdata__(data, num_clients, seed, alpha)
         else:
@@ -135,7 +149,7 @@ class DataPartitioner(object):
             partitions[user] = [u for v in partitions[user] for u in v]
         # interval = 1
         # labelPointer = 0
-
+        
         # #basic part
         # for partPointer in range(clients_num):
         #     requiredLabelList = list()

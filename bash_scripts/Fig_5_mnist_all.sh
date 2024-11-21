@@ -2,7 +2,7 @@
 
 # limit the number of parallel process
 function max4 {
-   while [ `jobs | wc -l` -ge 5 ] 
+   while [ `jobs | wc -l` -ge 5 ] # tune the number of parallel process
    do
       wait -n
    done

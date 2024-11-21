@@ -6,7 +6,8 @@ This code consists in federated learning under transmission packet error rate fo
 
 The main program is *main_fed.py*.
 
-Please install pytorch and related first and then install the `requirement.txt` file. 
+Please first install the requirements using pip:  
+```pip install -r requirement.txt``` file. 
 
 
 You can run the program by:

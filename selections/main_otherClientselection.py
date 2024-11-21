@@ -42,6 +42,6 @@ def CS_salehi(N,K, p_k, U_k):
     vec = p_k / U_k
     obj = cp.Minimize(cp.sum(cp.multiply(vec, cp.exp(-x))))
     prob = cp.Problem(obj, constraints)
-    prob.solve()
+    prob.solve(solver="SCS")
     yk = x.value
     return np.exp(yk)
